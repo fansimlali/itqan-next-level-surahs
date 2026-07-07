@@ -4,7 +4,7 @@ import NextLevelFilters from '../components/NextLevelFilters';
 import NextLevelStudentsTable from '../components/NextLevelStudentsTable';
 import NextLevelReportExport from '../components/NextLevelReportExport';
 import { getNextGrade } from '../utils/gradeProgression';
-import { calculateStudentSummary, filterIncompleteStudents, sortStudents, filterStudentsByStatus, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
+import { calculateStudentSummary, filterIncompleteStudents, sortStudents, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
 import { supabase } from '../supabase/client';
 import '../styles/print.css';
 
@@ -23,7 +23,7 @@ const NextLevelSurahsPage = () => {
   const [processedStudents, setProcessedStudents] = useState([]);
   const [statistics, setStatistics] = useState({});
 
-  // جلب جميع الطلاب عند تحميل الصفحة
+  // جلب جميع البيانات عند تحميل الصفحة
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -46,23 +46,26 @@ const NextLevelSurahsPage = () => {
         if (currErr) throw currErr;
         setAllCurriculum(curriculumData || []);
 
-        // جلب جميع سجلات الحفظ
+        // جلب جميع سجلات الحفظ (بدون تصفية حسب المستوى)
         const { data: recordsData, error: recordsErr } = await supabase
           .from('monthly_records')
           .select('student_id, surah_name, verse_count');
         if (recordsErr) throw recordsErr;
         
+        // بناء خريطة من السجلات لكل طالب
         const records = {};
         recordsData.forEach((record) => {
           if (!records[record.student_id]) {
             records[record.student_id] = {};
           }
+          // جمع الآيات من نفس السورة (لو كان ليها أكثر من سجل واحد)
           records[record.student_id][record.surah_name] = 
             (records[record.student_id][record.surah_name] || 0) + record.verse_count;
         });
         setStudentRecords(records);
       } catch (err) {
         setError(`خطأ في جلب البيانات: ${err.message}`);
+        console.error('Error:', err);
       } finally {
         setLoading(false);
       }
@@ -91,7 +94,7 @@ const NextLevelSurahsPage = () => {
 
         if (requiredSurahs.length === 0) return;
 
-        // حساب الملخص
+        // حساب الملخص باستخدام **جميع** سجلات الطالب
         const studentRecs = studentRecords[student.id] || {};
         const summary = calculateStudentSummary(student, requiredSurahs, studentRecs);
         summary.next_grade = nextGradeVal;
