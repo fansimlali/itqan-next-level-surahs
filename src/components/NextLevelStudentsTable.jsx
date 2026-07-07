@@ -4,7 +4,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import StudentSurahDetails from './StudentSurahDetails';
 
-const NextLevelStudentsTable = ({ students, loading = false, nextGrade = '' }) => {
+const NextLevelStudentsTable = ({ students, loading = false }) => {
   const [expandedRows, setExpandedRows] = useState({});
 
   const toggleExpand = (studentId) => {
@@ -28,7 +28,7 @@ const NextLevelStudentsTable = ({ students, loading = false, nextGrade = '' }) =
     return (
       <Paper sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="body1" color="text.secondary">
-          ✅ لا توجد طلاب لديهم سور ناقصة - جميع الطلاب أكملوا المقرر!
+          ✅ لا توجد طلاب بأي سور ناقصة هذه روع الطلب
         </Typography>
       </Paper>
     );
@@ -41,12 +41,12 @@ const NextLevelStudentsTable = ({ students, loading = false, nextGrade = '' }) =
   };
 
   return (
-    <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
+    <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden', '& table': { '& td, & th': { padding: '12px' } } }}>
       <Table aria-label="جدول الطلاب" stickyHeader>
         <TableHead>
           <TableRow sx={{ backgroundColor: 'primary.main', '& th': { fontWeight: 700, color: 'white', padding: '16px 12px', fontSize: '0.95rem' } }}>
             <TableCell align="center" width="40px" />
-            <TableCell align="right" width="18%">
+            <TableCell align="right" width="15%">
               اسم الطالب
             </TableCell>
             <TableCell align="center" width="12%">
@@ -56,12 +56,18 @@ const NextLevelStudentsTable = ({ students, loading = false, nextGrade = '' }) =
               المستوى التالي
             </TableCell>
             <TableCell align="center" width="10%">
+              الحالة
+            </TableCell>
+            <TableCell align="center" width="10%">
+              الجنس
+            </TableCell>
+            <TableCell align="center" width="10%">
               سور مقررة
             </TableCell>
             <TableCell align="center" width="10%">
               سور ناقصة
             </TableCell>
-            <TableCell align="center" width="22%">
+            <TableCell align="center" width="15%">
               نسبة الإكمال
             </TableCell>
           </TableRow>
@@ -69,12 +75,22 @@ const NextLevelStudentsTable = ({ students, loading = false, nextGrade = '' }) =
         <TableBody>
           {students.map((student) => {
             const isExpanded = expandedRows[student.student_id];
-            const completionPercentage = student.overall_completion_percentage || 0;
+            const completionPercentage = Math.min(student.overall_completion_percentage || 0, 100);
             const completionColor = getCompletionColor(completionPercentage);
+            const genderDisplay = student.gender === 'ذكر' ? 'ذكر' : 'أنثى';
 
             return (
               <React.Fragment key={student.student_id}>
-                <TableRow sx={{ '&:nth-of-type(odd)': { backgroundColor: 'background.default' }, '&:hover': { backgroundColor: 'action.hover' }, cursor: 'pointer', transition: 'background-color 0.2s', '& td': { padding: '14px 12px', borderBottom: '0.5px solid', borderBottomColor: 'divider' } }} onClick={() => toggleExpand(student.student_id)}>
+                <TableRow
+                  sx={{
+                    '&:nth-of-type(odd)': { backgroundColor: 'background.default' },
+                    '&:hover': { backgroundColor: 'action.hover' },
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                    '& td': { padding: '14px 12px', borderBottom: '0.5px solid', borderBottomColor: 'divider' },
+                  }}
+                  onClick={() => toggleExpand(student.student_id)}
+                >
                   <TableCell align="center" sx={{ width: '40px' }}>
                     <Tooltip title={isExpanded ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}>
                       <IconButton size="small" sx={{ color: 'primary.main' }}>
@@ -83,15 +99,19 @@ const NextLevelStudentsTable = ({ students, loading = false, nextGrade = '' }) =
                     </Tooltip>
                   </TableCell>
                   <TableCell align="right" sx={{ fontWeight: 500, color: 'text.primary', fontSize: '0.95rem' }}>
-                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                      <span>{student.student_name}</span>
-                    </Stack>
+                    {student.student_name}
                   </TableCell>
                   <TableCell align="center">
                     <Chip label={student.current_grade} size="small" variant="outlined" sx={{ fontSize: '0.8rem', fontWeight: 500 }} />
                   </TableCell>
                   <TableCell align="center">
-                    <Chip label={nextGrade || student.current_grade} size="small" color="primary" sx={{ fontSize: '0.8rem', fontWeight: 500 }} />
+                    <Chip label={student.next_grade} size="small" color="primary" sx={{ fontSize: '0.8rem', fontWeight: 500 }} />
+                  </TableCell>
+                  <TableCell align="center">
+                    <Chip label={student.status || '-'} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />
+                  </TableCell>
+                  <TableCell align="center">
+                    <Chip label={genderDisplay} size="small" variant="outlined" sx={{ fontSize: '0.75rem' }} />
                   </TableCell>
                   <TableCell align="center">
                     <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary', fontFamily: 'monospace' }}>
@@ -113,7 +133,7 @@ const NextLevelStudentsTable = ({ students, loading = false, nextGrade = '' }) =
                   </TableCell>
                 </TableRow>
                 <TableRow sx={{ backgroundColor: isExpanded ? 'action.selected' : 'transparent' }}>
-                  <TableCell colSpan={7} sx={{ padding: 0 }}>
+                  <TableCell colSpan={9} sx={{ padding: 0 }}>
                     <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                       <Box sx={{ p: 2 }}>
                         <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>

@@ -3,137 +3,124 @@ import { Container, Box, Typography, CircularProgress, Alert, Paper, Stack, Grid
 import NextLevelFilters from '../components/NextLevelFilters';
 import NextLevelStudentsTable from '../components/NextLevelStudentsTable';
 import NextLevelReportExport from '../components/NextLevelReportExport';
-import { getNextGrade, isLastGrade } from '../utils/gradeProgression';
+import { getNextGrade } from '../utils/gradeProgression';
 import { calculateStudentSummary, filterIncompleteStudents, sortStudents, filterStudentsByStatus, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
 import { supabase } from '../supabase/client';
+import '../styles/print.css';
 
 const NextLevelSurahsPage = () => {
   const [selectedGrade, setSelectedGrade] = useState('الأول ابتدائي');
-  const [activeOnly, setActiveOnly] = useState(true);
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedGender, setSelectedGender] = useState('');
+  const [activeOnly, setActiveOnly] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('name');
   const [allStudents, setAllStudents] = useState([]);
+  const [allCurriculum, setAllCurriculum] = useState([]);
   const [studentRecords, setStudentRecords] = useState({});
-  const [requiredSurahs, setRequiredSurahs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [processedStudents, setProcessedStudents] = useState([]);
   const [statistics, setStatistics] = useState({});
-  const [nextGrade, setNextGrade] = useState('');
 
-  // جلب الطلاب عند تحميل الصفحة
+  // جلب جميع الطلاب عند تحميل الصفحة
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const { data, error: err } = await supabase
+        // جلب جميع الطلاب
+        const { data: studentsData, error: studentsErr } = await supabase
           .from('students')
-          .select('id, name, school_grade, status')
+          .select('id, name, school_grade, status, gender')
           .is('deleted_at', null)
           .order('school_grade')
           .order('name');
-        if (err) throw err;
-        setAllStudents(data || []);
-      } catch (err) {
-        setError(`خطأ في جلب بيانات الطلاب: ${err.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStudents();
-  }, []);
+        if (studentsErr) throw studentsErr;
+        setAllStudents(studentsData || []);
 
-  // جلب السور المقررة عند تغيير المستوى
-  useEffect(() => {
-    const fetchCurriculum = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const next = getNextGrade(selectedGrade);
-        if (!next || isLastGrade(selectedGrade)) {
-          setError('هذا هو آخر مستوى دراسي - لا يوجد مستوى تالي');
-          setRequiredSurahs([]);
-          setNextGrade(null);
-          setLoading(false);
-          return;
-        }
-        setNextGrade(next);
-        const { data, error: err } = await supabase
+        // جلب جميع المقرر الدراسي
+        const { data: curriculumData, error: currErr } = await supabase
           .from('curriculum')
-          .select('surah_name')
-          .eq('school_grade', next)
-          .order('surah_name');
-        if (err) throw err;
-        const surahs = data.map((row) => row.surah_name);
-        setRequiredSurahs(surahs);
-      } catch (err) {
-        setError(`خطأ في جلب المقرر الدراسي: ${err.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCurriculum();
-  }, [selectedGrade]);
+          .select('school_grade, surah_name');
+        if (currErr) throw currErr;
+        setAllCurriculum(curriculumData || []);
 
-  // جلب سجلات الحفظ
-  useEffect(() => {
-    const fetchRecords = async () => {
-      if (!allStudents || allStudents.length === 0) return;
-      try {
-        const gradeStudents = allStudents.filter((s) => s.school_grade === selectedGrade);
-        const studentIds = gradeStudents.map((s) => s.id);
-        if (studentIds.length === 0) return;
-        const { data, error: err } = await supabase
+        // جلب جميع سجلات الحفظ
+        const { data: recordsData, error: recordsErr } = await supabase
           .from('monthly_records')
-          .select('student_id, surah_name, verse_count')
-          .in('student_id', studentIds);
-        if (err) throw err;
+          .select('student_id, surah_name, verse_count');
+        if (recordsErr) throw recordsErr;
+        
         const records = {};
-        data.forEach((record) => {
+        recordsData.forEach((record) => {
           if (!records[record.student_id]) {
             records[record.student_id] = {};
           }
-          records[record.student_id][record.surah_name] = (records[record.student_id][record.surah_name] || 0) + record.verse_count;
+          records[record.student_id][record.surah_name] = 
+            (records[record.student_id][record.surah_name] || 0) + record.verse_count;
         });
         setStudentRecords(records);
       } catch (err) {
-        console.error('Error fetching records:', err);
+        setError(`خطأ في جلب البيانات: ${err.message}`);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchRecords();
-  }, [selectedGrade, allStudents]);
+    fetchData();
+  }, []);
 
   // معالجة البيانات
   useEffect(() => {
-    if (!allStudents || allStudents.length === 0 || requiredSurahs.length === 0) {
+    if (!allStudents || allStudents.length === 0 || allCurriculum.length === 0) {
       setProcessedStudents([]);
       return;
     }
+
     try {
-      const gradeStudents = allStudents.filter((s) => s.school_grade === selectedGrade);
-      const summaries = gradeStudents.map((student) => {
-        const records = studentRecords[student.id] || {};
-        return calculateStudentSummary(student, requiredSurahs, records);
+      const processed = [];
+
+      allStudents.forEach((student) => {
+        const nextGradeVal = getNextGrade(student.school_grade);
+        if (!nextGradeVal) return; // الطالب في آخر مستوى
+
+        // الحصول على السور المقررة للمستوى التالي
+        const requiredSurahs = allCurriculum
+          .filter((c) => c.school_grade === nextGradeVal)
+          .map((c) => c.surah_name);
+
+        if (requiredSurahs.length === 0) return;
+
+        // حساب الملخص
+        const studentRecs = studentRecords[student.id] || {};
+        const summary = calculateStudentSummary(student, requiredSurahs, studentRecs);
+        summary.next_grade = nextGradeVal;
+
+        processed.push(summary);
       });
-      const incomplete = filterIncompleteStudents(summaries);
-      let filtered = incomplete;
-      filtered = filterStudentsByStatus(filtered, activeOnly);
-      filtered = searchStudents(filtered, searchTerm);
-      filtered = sortStudents(filtered, sortBy);
-      setProcessedStudents(filtered);
-      const stats = calculatePageStatistics(filtered);
+
+      // البحث عن الطلاب ذوي السور الناقصة فقط
+      let incomplete = filterIncompleteStudents(processed);
+
+      // تطبيق الفلاتر
+      incomplete = incomplete.filter((s) => {
+        if (activeOnly && s.status !== 'نشط') return false;
+        if (selectedStatus && s.status !== selectedStatus) return false;
+        if (selectedGender && s.gender !== selectedGender) return false;
+        return true;
+      });
+
+      incomplete = searchStudents(incomplete, searchTerm);
+      incomplete = sortStudents(incomplete, sortBy);
+
+      setProcessedStudents(incomplete);
+      const stats = calculatePageStatistics(incomplete);
       setStatistics(stats);
     } catch (err) {
       console.error('Error processing data:', err);
       setError('خطأ في معالجة البيانات');
     }
-  }, [allStudents, requiredSurahs, studentRecords, activeOnly, searchTerm, sortBy, selectedGrade]);
-
-  const handleGradeChange = (grade) => {
-    setSelectedGrade(grade);
-    setSearchTerm('');
-  };
+  }, [allStudents, allCurriculum, studentRecords, activeOnly, selectedStatus, selectedGender, searchTerm, sortBy]);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -142,19 +129,27 @@ const NextLevelSurahsPage = () => {
           📚 السور الغير المحفوظة في المستوى التالي
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          عرض الطلاب الذين لديهم سور ناقصة في المستوى الدراسي التالي - للتركيز عليها في الفترة الصيفية
+          عرض جميع الطلاب الذين لديهم سور ناقصة في مستواهم التالية
         </Typography>
       </Box>
+
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+
       <NextLevelFilters
         selectedGrade={selectedGrade}
-        onGradeChange={handleGradeChange}
+        onGradeChange={setSelectedGrade}
+        selectedStatus={selectedStatus}
+        onStatusChange={setSelectedStatus}
+        selectedGender={selectedGender}
+        onGenderChange={setSelectedGender}
         activeOnly={activeOnly}
         onActiveOnlyChange={setActiveOnly}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         disabled={loading}
+        showGradeFilter={false}
       />
+
       {processedStudents.length > 0 && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={12} sm={6} md={3}>
@@ -171,7 +166,7 @@ const NextLevelSurahsPage = () => {
             <Card>
               <CardContent>
                 <Typography color="textSecondary" gutterBottom>
-                  السور الناقصة
+                  إجمالي السور الناقصة
                 </Typography>
                 <Typography variant="h5">{statistics.total_incomplete_surahs}</Typography>
               </CardContent>
@@ -191,24 +186,26 @@ const NextLevelSurahsPage = () => {
             <Card>
               <CardContent>
                 <Typography color="textSecondary" gutterBottom>
-                  المستوى التالي
+                  عدد الطلاب مع سور ناقصة
                 </Typography>
-                <Typography variant="h6">{nextGrade || '—'}</Typography>
+                <Typography variant="h5">{processedStudents.length}</Typography>
               </CardContent>
             </Card>
           </Grid>
         </Grid>
       )}
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
           <CircularProgress />
         </Box>
       ) : (
-        <NextLevelStudentsTable students={processedStudents} loading={loading} nextGrade={nextGrade} />
+        <NextLevelStudentsTable students={processedStudents} loading={loading} />
       )}
+
       {processedStudents.length > 0 && (
         <Box sx={{ mt: 4 }}>
-          <NextLevelReportExport students={processedStudents} nextGrade={nextGrade} selectedGrade={selectedGrade} statistics={statistics} disabled={loading} />
+          <NextLevelReportExport students={processedStudents} statistics={statistics} disabled={loading} />
         </Box>
       )}
     </Container>
