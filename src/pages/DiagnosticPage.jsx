@@ -40,13 +40,6 @@ const DiagnosticPage = () => {
       setRecords(recordsData || []);
       console.log('السجلات الكاملة:', recordsData);
       
-      // البحث عن سورة ق ولقمان تحديداً
-      const qafRecords = recordsData?.filter(r => r.surah_name === 'سورة ق') || [];
-      const luqmanRecords = recordsData?.filter(r => r.surah_name === 'سورة لقمان') || [];
-      
-      console.log('سجلات سورة ق:', qafRecords);
-      console.log('سجلات سورة لقمان:', luqmanRecords);
-      
     } catch (err) {
       setError(err.message);
       console.error('خطأ:', err);
@@ -68,9 +61,6 @@ const DiagnosticPage = () => {
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', mb: 2 }}>
           🔍 صفحة التشخيص - التحقق من سجلات الطالب
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          هذه الصفحة للتحقق مما إذا كانت بيانات الطالب موجودة بشكل صحيح في قاعدة البيانات
         </Typography>
       </Box>
 
@@ -146,18 +136,18 @@ const DiagnosticPage = () => {
           </Box>
           
           <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-            بيانات جميع السجلات:
+            جميع السجلات:
           </Typography>
           <TableContainer>
             <Table size="small">
               <TableHead>
                 <TableRow sx={{ backgroundColor: '#1976d2' }}>
                   <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>السورة</TableCell>
-                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>عدد الآيات</TableCell>
-                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>من الآية</TableCell>
-                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}ت الآية</TableCell>
-                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}التاريخ</TableCell>
-                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}الختمة</TableCell>
+                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>الآيات</TableCell>
+                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>من</TableCell>
+                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>إلى</TableCell>
+                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>التاريخ</TableCell>
+                  <TableCell align="center" sx={{ color: 'white', fontWeight: 'bold' }}>الختمة</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -197,7 +187,7 @@ const DiagnosticPage = () => {
 
       {records.length === 0 && studentData && !loading && (
         <Alert severity="warning">
-          ⚠️ لا توجد سجلات حفظ لهذا الطالب في قاعدة البيانات
+          ⚠️ لا توجد سجلات حفظ لهذا الطالب
         </Alert>
       )}
     </Container>
