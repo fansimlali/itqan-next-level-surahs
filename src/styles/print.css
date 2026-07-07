@@ -1,0 +1,105 @@
+/* Print Styles */
+@media print {
+  /* إخفاء العناصر غير الضرورية */
+  .no-print,
+  button,
+  [class*="Button"],
+  [class*="Icon"],
+  .MuiIconButton-root {
+    display: none !important;
+  }
+
+  /* إعدادات التببسط */
+  body {
+    font-family: Arial, sans-serif;
+    direction: rtl;
+  }
+
+  /* إعدادات الجداول */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+
+  table,
+  th,
+  td {
+    border: 1px solid #000 !important;
+  }
+
+  th {
+    background-color: #f0f0f0 !important;
+    font-weight: bold;
+    padding: 8px !important;
+    text-align: right;
+  }
+
+  td {
+    padding: 8px !important;
+    text-align: right;
+  }
+
+  /* رؤوس بدون فواصل */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* رسالة العناوين */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    page-break-after: avoid;
+  }
+
+  /* مرافق المحتويات */
+  .MuiContainer-root {
+    max-width: 100%;
+  }
+
+  /* أبعاد الصفحة */
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+
+  /* إزالة الحدود الزائدة */
+  .printable-row {
+    page-break-inside: avoid;
+  }
+
+  /* رسمو التقدم */
+  .printable-progress {
+    background-color: #e0e0e0 !important;
+  }
+
+  /* روابط الرابطة */
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+
+  /* الرواشح والإقرارات */
+  .MuiPaper-root {
+    box-shadow: none !important;
+    border: 1px solid #ccc;
+  }
+
+  /* أظهر رقم الاجتماعي */
+  .statistics-cards {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .statistics-cards .MuiCard-root {
+    flex: 1;
+    margin: 0 10px;
+    border: 1px solid #000;
+  }
+}
