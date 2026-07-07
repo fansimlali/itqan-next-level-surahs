@@ -41,7 +41,7 @@ export const getStatusIcon = (status) => {
     'جزئي': '⚠️',
     'لم يبدأ': '❌',
   };
-  return icons[status] || '❔';
+  return icons[status] || '❓';
 };
 
 /**
@@ -103,6 +103,14 @@ export const calculateStudentSummary = (student, requiredSurahs, studentRecords)
  */
 export const filterIncompleteStudents = (studentSummaries) => {
   return studentSummaries.filter((s) => s.has_incomplete);
+};
+
+/**
+ * filterStudentsByStatus: فلترة الطلاب حسب الحالة
+ */
+export const filterStudentsByStatus = (students, activeOnly = true) => {
+  if (!activeOnly) return students;
+  return students.filter((s) => s.status === 'نشط');
 };
 
 /**
