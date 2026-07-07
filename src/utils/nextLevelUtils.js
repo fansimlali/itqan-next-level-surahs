@@ -1,13 +1,25 @@
 /**
  * nextLevelUtils.js
  * 
- * دوال مساعدة شاملة لحساب وفلترة البيانات
+ * دوال مساعدة لحساب السور الناقصة
  */
 
 import { GRADE_PROGRESSION } from './gradeProgression';
 import { SURAH_VERSES, calculateCompletionPercentage } from './surahData';
 
 export const COMPLETION_THRESHOLD = 0.8;
+
+/**
+ * normalizeStr: تطبيع النصوص لمقارنة لاحقة
+ */
+const normalizeStr = (str) => {
+  if (!str) return '';
+  // إزالة 'sura' و 'سورة'
+  return str
+    .replace(/^سورة\s+/, '')
+    .replace(/^sura\s+/i, '')
+    .trim();
+};
 
 /**
  * getSurahStatus: تحديد حالة السورة
@@ -51,7 +63,6 @@ export const calculateSurahDetails = (surahName, memorizedVerses = 0) => {
   const totalVerses = SURAH_VERSES[surahName] || 0;
   const status = getSurahStatus(memorizedVerses, totalVerses);
   let completionPercentage = calculateCompletionPercentage(memorizedVerses, totalVerses);
-  // التأكد من عدم تجاوز 100%
   completionPercentage = Math.min(Math.round(completionPercentage), 100);
   return {
     name: surahName,
@@ -68,7 +79,18 @@ export const calculateSurahDetails = (surahName, memorizedVerses = 0) => {
  */
 export const calculateStudentSummary = (student, requiredSurahs, studentRecords) => {
   const surahDetails = requiredSurahs.map((surahName) => {
-    const memorizedVerses = studentRecords[surahName] || 0;
+    // ابحث عن السورة بتمابل لاحق (بالنبذات)
+    let memorizedVerses = 0;
+    const normalizedRequired = normalizeStr(surahName);
+    
+    for (const [recordedSurah, verses] of Object.entries(studentRecords)) {
+      const normalizedRecorded = normalizeStr(recordedSurah);
+      if (normalizedRequired === normalizedRecorded) {
+        memorizedVerses = verses;
+        break;
+      }
+    }
+    
     return calculateSurahDetails(surahName, memorizedVerses);
   });
 
@@ -80,7 +102,6 @@ export const calculateStudentSummary = (student, requiredSurahs, studentRecords)
   const totalMemorized = surahDetails.reduce((sum, s) => sum + s.memorizedVerses, 0);
   const totalRequired = surahDetails.reduce((sum, s) => sum + s.totalVerses, 0);
   let overallCompletion = calculateCompletionPercentage(totalMemorized, totalRequired);
-  // التأكد من عدم تجاوز 100%
   overallCompletion = Math.min(Math.round(overallCompletion), 100);
 
   return {
@@ -106,7 +127,7 @@ export const filterIncompleteStudents = (studentSummaries) => {
 };
 
 /**
- * filterStudentsByStatus: فلترة الطلاب حسب الحالة
+ * filterStudentsByStatus: فلترة حسب الحالة
  */
 export const filterStudentsByStatus = (students, activeOnly = true) => {
   if (!activeOnly) return students;
@@ -134,7 +155,7 @@ export const sortStudents = (students, sortBy = 'name') => {
 };
 
 /**
- * searchStudents: البحث عن طلاب
+ * searchStudents: البحث
  */
 export const searchStudents = (students, searchTerm) => {
   if (!searchTerm || searchTerm.trim() === '') return students;
@@ -143,7 +164,7 @@ export const searchStudents = (students, searchTerm) => {
 };
 
 /**
- * calculatePageStatistics: حساب إحصائيات الصفحة
+ * calculatePageStatistics: حساب إحصائيات
  */
 export const calculatePageStatistics = (students) => {
   if (students.length === 0) {
@@ -168,7 +189,7 @@ export const calculatePageStatistics = (students) => {
 };
 
 /**
- * validateStudentData: التحقق من صحة بيانات الطالب
+ * validateStudentData: التحقق من البيانات
  */
 export const validateStudentData = (student) => {
   const errors = [];
@@ -181,7 +202,7 @@ export const validateStudentData = (student) => {
 };
 
 /**
- * formatSurahForDisplay: تنسيق بيانات السورة
+ * formatSurahForDisplay: تنسيق للعرض
  */
 export const formatSurahForDisplay = (surah) => {
   return {
