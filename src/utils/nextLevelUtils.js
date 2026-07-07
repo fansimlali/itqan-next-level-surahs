@@ -1,19 +1,16 @@
 /**
  * nextLevelUtils.js
  * 
- * دوال مساعدة شاملة لحساب وفلترة البيانات للصفحة الجديدة
- * "السور الغير المحفوظة في المستوى التالي"
+ * دوال مساعدة شاملة لحساب وفلترة البيانات
  */
 
 import { GRADE_PROGRESSION } from './gradeProgression';
 import { SURAH_VERSES, calculateCompletionPercentage } from './surahData';
 
-// معيار الاكتمال (80%)
 export const COMPLETION_THRESHOLD = 0.8;
 
 /**
- * getSurahStatus(memorizedVerses, totalVerses, threshold = 0.8)
- * تحديد حالة السورة (محفوظ/جزئي/لم يبدأ)
+ * getSurahStatus: تحديد حالة السورة
  */
 export const getSurahStatus = (memorizedVerses, totalVerses, threshold = COMPLETION_THRESHOLD) => {
   if (totalVerses === 0) return 'لم يبدأ';
@@ -24,7 +21,7 @@ export const getSurahStatus = (memorizedVerses, totalVerses, threshold = COMPLET
 };
 
 /**
- * getStatusColor(status): الحصول على لون الحالة
+ * getStatusColor: الحصول على لون الحالة
  */
 export const getStatusColor = (status) => {
   const colors = {
@@ -36,7 +33,7 @@ export const getStatusColor = (status) => {
 };
 
 /**
- * getStatusIcon(status): الحصول على أيقونة الحالة
+ * getStatusIcon: الحصول على أيقونة الحالة
  */
 export const getStatusIcon = (status) => {
   const icons = {
@@ -48,26 +45,26 @@ export const getStatusIcon = (status) => {
 };
 
 /**
- * calculateSurahDetails(surahName, memorizedVerses)
- * حساب تفاصيل السورة
+ * calculateSurahDetails: حساب تفاصيل السورة
  */
 export const calculateSurahDetails = (surahName, memorizedVerses = 0) => {
   const totalVerses = SURAH_VERSES[surahName] || 0;
   const status = getSurahStatus(memorizedVerses, totalVerses);
-  const completionPercentage = calculateCompletionPercentage(memorizedVerses, totalVerses);
+  let completionPercentage = calculateCompletionPercentage(memorizedVerses, totalVerses);
+  // التأكد من عدم تجاوز 100%
+  completionPercentage = Math.min(Math.round(completionPercentage), 100);
   return {
     name: surahName,
     status,
     memorizedVerses,
     totalVerses,
-    completionPercentage: Math.round(completionPercentage),
+    completionPercentage,
     isComplete: status === 'محفوظ',
   };
 };
 
 /**
- * calculateStudentSummary(student, requiredSurahs, studentRecords)
- * حساب ملخص الطالب مع جميع السور الناقصة
+ * calculateStudentSummary: حساب ملخص الطالب
  */
 export const calculateStudentSummary = (student, requiredSurahs, studentRecords) => {
   const surahDetails = requiredSurahs.map((surahName) => {
@@ -82,32 +79,34 @@ export const calculateStudentSummary = (student, requiredSurahs, studentRecords)
 
   const totalMemorized = surahDetails.reduce((sum, s) => sum + s.memorizedVerses, 0);
   const totalRequired = surahDetails.reduce((sum, s) => sum + s.totalVerses, 0);
-  const overallCompletion = calculateCompletionPercentage(totalMemorized, totalRequired);
+  let overallCompletion = calculateCompletionPercentage(totalMemorized, totalRequired);
+  // التأكد من عدم تجاوز 100%
+  overallCompletion = Math.min(Math.round(overallCompletion), 100);
 
   return {
     student_id: student.id,
     student_name: student.name,
     current_grade: student.school_grade,
+    status: student.status,
+    gender: student.gender,
     required_surahs_count: requiredCount,
     incomplete_surahs_count: incompleteCount,
     complete_surahs_count: completeCount,
-    overall_completion_percentage: Math.round(overallCompletion),
+    overall_completion_percentage: overallCompletion,
     incomplete_surahs: incompleteSurahs,
     has_incomplete: incompleteCount > 0,
   };
 };
 
 /**
- * filterIncompleteStudents(studentSummaries)
- * فلترة الطلاب الذين لديهم سور ناقصة فقط
+ * filterIncompleteStudents: فلترة الطلاب الذين لديهم سور ناقصة
  */
 export const filterIncompleteStudents = (studentSummaries) => {
   return studentSummaries.filter((s) => s.has_incomplete);
 };
 
 /**
- * sortStudents(students, sortBy = 'name')
- * ترتيب الطلاب
+ * sortStudents: ترتيب الطلاب
  */
 export const sortStudents = (students, sortBy = 'name') => {
   const sorted = [...students];
@@ -127,17 +126,7 @@ export const sortStudents = (students, sortBy = 'name') => {
 };
 
 /**
- * filterStudentsByStatus(students, activeOnly = true)
- * فلترة الطلاب حسب الحالة (نشط/منقطع)
- */
-export const filterStudentsByStatus = (students, activeOnly = true) => {
-  if (!activeOnly) return students;
-  return students.filter((s) => s.status === 'نشط');
-};
-
-/**
- * searchStudents(students, searchTerm)
- * البحث عن طلاب بالاسم
+ * searchStudents: البحث عن طلاب
  */
 export const searchStudents = (students, searchTerm) => {
   if (!searchTerm || searchTerm.trim() === '') return students;
@@ -146,8 +135,7 @@ export const searchStudents = (students, searchTerm) => {
 };
 
 /**
- * calculatePageStatistics(students)
- * حساب إحصائيات الصفحة الكاملة
+ * calculatePageStatistics: حساب إحصائيات الصفحة
  */
 export const calculatePageStatistics = (students) => {
   if (students.length === 0) {
@@ -160,26 +148,24 @@ export const calculatePageStatistics = (students) => {
   }
 
   const totalIncompleteSurahs = students.reduce((sum, s) => sum + s.incomplete_surahs_count, 0);
-  const averageCompletion = students.reduce((sum, s) => sum + s.overall_completion_percentage, 0) / students.length;
+  let averageCompletion = students.reduce((sum, s) => sum + s.overall_completion_percentage, 0) / students.length;
+  averageCompletion = Math.min(Math.round(averageCompletion), 100);
 
   return {
     total_students: students.length,
     total_incomplete_surahs: totalIncompleteSurahs,
-    average_completion_percentage: Math.round(averageCompletion),
+    average_completion_percentage: averageCompletion,
     students_with_incomplete: students.filter((s) => s.has_incomplete).length,
   };
 };
 
 /**
- * validateStudentData(student)
- * التحقق من صحة بيانات الطالب
+ * validateStudentData: التحقق من صحة بيانات الطالب
  */
 export const validateStudentData = (student) => {
   const errors = [];
   if (!student.id) errors.push('معرف الطالب مفقود');
   if (!student.name) errors.push('اسم الطالب مفقود');
-  if (!student.school_grade) errors.push('المستوى الدراسي مفقود');
-  if (!student.status) errors.push('حالة الطالب مفقودة');
   return {
     isValid: errors.length === 0,
     errors,
@@ -187,8 +173,7 @@ export const validateStudentData = (student) => {
 };
 
 /**
- * formatSurahForDisplay(surah)
- * تنسيق بيانات السورة للعرض
+ * formatSurahForDisplay: تنسيق بيانات السورة
  */
 export const formatSurahForDisplay = (surah) => {
   return {
