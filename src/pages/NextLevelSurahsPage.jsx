@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Box, Typography, CircularProgress, Alert, Paper, Stack, Grid, Card, CardContent } from '@mui/material';
-import NextLevelFilters from './NextLevelFilters';
-import NextLevelStudentsTable from './NextLevelStudentsTable';
-import NextLevelReportExport from './NextLevelReportExport';
+import NextLevelFilters from '../components/NextLevelFilters';
+import NextLevelStudentsTable from '../components/NextLevelStudentsTable';
+import NextLevelReportExport from '../components/NextLevelReportExport';
 import { getNextGrade, isLastGrade } from '../utils/gradeProgression';
 import { calculateStudentSummary, filterIncompleteStudents, sortStudents, filterStudentsByStatus, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
 import { supabase } from '../supabase/client';
