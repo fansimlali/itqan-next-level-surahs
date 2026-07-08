@@ -58,7 +58,11 @@ const NextLevelSurahsPage = () => {
         
         // التحقق من بيانات الطالب 304
         const student304Records = recordsData?.filter(r => r.student_id == 304 || r.student_id == '304') || [];
-        console.log('🔍 سجلات الطالب 304:', student304Records);
+        console.log('🔍 سجلات الطالب 304 (العدد):', student304Records.length);
+        console.log('🔍 أسماء السور للطالب 304:');
+        student304Records.forEach((rec, idx) => {
+          console.log(`   ${idx + 1}. "سورة": "${rec.surah_name}", آيات: ${rec.start_verse}-${rec.end_verse}`);
+        });
         
         setAllMonthlyRecords(recordsData || []);
       } catch (err) {
@@ -98,9 +102,11 @@ const NextLevelSurahsPage = () => {
     
     // تسجيل للطالب 304 للتحقق
     if (studentId == 304) {
-      console.log(`🔍 معالجة الطالب 304 - السورة: ${surahName}`);
+      console.log(`🔍 معالجة الطالب 304 - السورة: "${surahName}"`);
       console.log(`   السجلات الموجودة: ${surahRecords.length}`);
       console.log(`   الآيات المحفوظة: ${memorizedSet.size}`);
+      console.log(`   بحثت عن: "${normalizeStr(surahName)}"`);
+      console.log(`   السجلات بالطالب:`, studentRecords.map(r => `"${r.surah_name}"`).join(', '));
     }
     
     return memorizedSet.size;
