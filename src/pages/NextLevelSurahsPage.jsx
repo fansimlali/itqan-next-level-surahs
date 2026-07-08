@@ -1,3 +1,126 @@
+import React, { useState, useEffect } from 'react';
+import { Container, Box, Typography, CircularProgress, Alert, Paper, Stack, Grid, Card, CardContent } from '@mui/material';
+import NextLevelFilters from '../components/NextLevelFilters';
+import NextLevelStudentsTable from '../components/NextLevelStudentsTable';
+import NextLevelReportExport from '../components/NextLevelReportExport';
+import { getNextGrade } from '../utils/gradeProgression';
+import { sortStudents, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
+import { SURAH_VERSES } from '../utils/surahData';
+import { supabase } from '../supabase/client';
+import '../styles/print.css';
+
+const NextLevelSurahsPage = () => {
+  const [selectedGrade, setSelectedGrade] = useState('الأول ابتدائي');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedGender, setSelectedGender] = useState('');
+  const [activeOnly, setActiveOnly] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [allStudents, setAllStudents] = useState([]);
+  const [allCurriculum, setAllCurriculum] = useState([]);
+  const [allMonthlyRecords, setAllMonthlyRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [processedStudents, setProcessedStudents] = useState([]);
+  const [statistics, setStatistics] = useState({});
+
+  // جلب جميع البيانات
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        // جلب جميع الطلاب
+        const { data: studentsData, error: studentsErr } = await supabase
+          .from('students')
+          .select('id, name, school_grade, status, gender')
+          .is('deleted_at', null)
+          .order('school_grade')
+          .order('name');
+        if (studentsErr) throw studentsErr;
+        setAllStudents(studentsData || []);
+
+        // جلب جميع المقرر الدراسي
+        const { data: curriculumData, error: currErr } = await supabase
+          .from('curriculum')
+          .select('school_grade, surah_name');
+        if (currErr) throw currErr;
+        setAllCurriculum(curriculumData || []);
+
+        // جلب جميع سجلات الحفظ باستخدام Pagination
+        let allRecordsData = [];
+        let pageIndex = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const { data: recordsPage, error: recordsErr } = await supabase
+            .from('monthly_records')
+            .select('student_id, surah_name, start_verse, end_verse, verse_count')
+            .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
+          
+          if (recordsErr) throw recordsErr;
+          
+          if (recordsPage && recordsPage.length > 0) {
+            allRecordsData = [...allRecordsData, ...recordsPage];
+            pageIndex++;
+            hasMore = recordsPage.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        console.log('💾 عدد السجلات المجلوبة (بعد Pagination):', allRecordsData.length);
+        setAllMonthlyRecords(allRecordsData || []);
+      } catch (err) {
+        setError(`خطأ في جلب البيانات: ${err.message}`);
+        console.error('Error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // دالة مساعدة لتطبيع النصوص
+  const normalizeStr = (str) => {
+    if (!str) return '';
+    return str
+      .replace(/^\s+/, '')
+      .replace(/\s+$/, '')
+      .trim();
+  };
+
+  // دالة لحساب الآيات المحفوظة لسورة معينة
+  const calculateMemorizedVersesForSurah = (studentId, surahName) => {
+    const studentIdNum = parseInt(studentId, 10);
+    const studentIdStr = String(studentId);
+    
+    const studentRecords = allMonthlyRecords.filter(r => {
+      const recordStudentId = parseInt(r.student_id, 10);
+      return recordStudentId === studentIdNum || r.student_id === studentIdStr || String(r.student_id) === studentIdStr;
+    });
+    
+    const surahRecords = studentRecords.filter(r => {
+      const recordName = normalizeStr(r.surah_name);
+      const targetName = normalizeStr(surahName);
+      return recordName === targetName;
+    });
+    
+    const memorizedSet = new Set();
+    surahRecords.forEach(r => {
+      if (r.start_verse && r.end_verse) {
+        const startVerse = parseInt(r.start_verse, 10);
+        const endVerse = parseInt(r.end_verse, 10);
+        for (let i = startVerse; i <= endVerse; i++) {
+          memorizedSet.add(i);
+        }
+      }
+    });
+    
+    return memorizedSet.size;
+  };
+
   // معالجة البيانات
   useEffect(() => {
     console.log('\n🔜 PROCESSING HOOK RUNNING');
@@ -24,14 +147,12 @@
 
         if (requiredSurahs.length === 0) return;
 
-        // حساب السور المحفوظة لكل سورة
         const surahStatuses = requiredSurahs.map(surahName => {
           const memorizedVerses = calculateMemorizedVersesForSurah(student.id, surahName);
           const totalVerses = SURAH_VERSES[surahName] || 0;
           const completionPercentage = totalVerses > 0 ? Math.round((memorizedVerses / totalVerses) * 100) : 0;
           const isComplete = completionPercentage >= 80;
           
-          // DEBUG: للطالب 307
           if (student.id == 307 && surahName.includes('انفطار')) {
             console.log(`\n🔍 SURAH STATUS CALC (307): "${surahName}"`);
             console.log(`   memorizedVerses: ${memorizedVerses}`);
@@ -52,7 +173,6 @@
         const incompleteSurahs = surahStatuses.filter(s => s.completionPercentage < 80);
         const completeSurahs = surahStatuses.filter(s => s.completionPercentage >= 80);
         
-        // DEBUG: للطالب 307
         if (student.id == 307) {
           console.log(`\n🔍 SURAHS FOR 307 AFTER FILTER:`);
           console.log(`   incomplete (< 80%): ${incompleteSurahs.length}`);
@@ -108,3 +228,95 @@
       setError('خطأ في معالجة البيانات');
     }
   }, [allStudents, allCurriculum, allMonthlyRecords, activeOnly, selectedStatus, selectedGender, searchTerm, sortBy]);
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', mb: 1 }}>
+          📚 السور الغير المحفوظة في المستوى التالي
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          عرض جميع الطلاب الذين لديهم سور ناقصة في مستواهم التالية
+        </Typography>
+      </Box>
+
+      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+
+      <NextLevelFilters
+        selectedGrade={selectedGrade}
+        onGradeChange={setSelectedGrade}
+        selectedStatus={selectedStatus}
+        onStatusChange={setSelectedStatus}
+        selectedGender={selectedGender}
+        onGenderChange={setSelectedGender}
+        activeOnly={activeOnly}
+        onActiveOnlyChange={setActiveOnly}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        disabled={loading}
+        showGradeFilter={false}
+      />
+
+      {processedStudents.length > 0 && (
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  عدد الطلاب
+                </Typography>
+                <Typography variant="h5">{statistics.total_students}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  إجمالي السور الناقصة
+                </Typography>
+                <Typography variant="h5">{statistics.total_incomplete_surahs}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  نسبة الإكمال المتوسطة
+                </Typography>
+                <Typography variant="h5">{statistics.average_completion_percentage}%</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card>
+              <CardContent>
+                <Typography color="textSecondary" gutterBottom>
+                  عدد الطلاب مع سور ناقصة
+                </Typography>
+                <Typography variant="h5">{processedStudents.length}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      )}
+
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <NextLevelStudentsTable students={processedStudents} loading={loading} />
+      )}
+
+      {processedStudents.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <NextLevelReportExport students={processedStudents} statistics={statistics} disabled={loading} />
+        </Box>
+      )}
+    </Container>
+  );
+};
+
+export default NextLevelSurahsPage;
