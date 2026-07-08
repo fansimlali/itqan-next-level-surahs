@@ -47,11 +47,19 @@ const NextLevelSurahsPage = () => {
         if (currErr) throw currErr;
         setAllCurriculum(curriculumData || []);
 
-        // جلب جميع سجلات الحفظ بالكامل
+        // جلب جميع سجلات الحفظ
         const { data: recordsData, error: recordsErr } = await supabase
           .from('monthly_records')
           .select('student_id, surah_name, start_verse, end_verse, verse_count');
+        
         if (recordsErr) throw recordsErr;
+        
+        console.log('💾 عدد السجلات المجلوبة:', recordsData?.length || 0);
+        
+        // التحقق من بيانات الطالب 304
+        const student304Records = recordsData?.filter(r => r.student_id == 304 || r.student_id == '304') || [];
+        console.log('🔍 سجلات الطالب 304:', student304Records);
+        
         setAllMonthlyRecords(recordsData || []);
       } catch (err) {
         setError(`خطأ في جلب البيانات: ${err.message}`);
@@ -74,7 +82,9 @@ const NextLevelSurahsPage = () => {
 
   // دالة لحساب الآيات المحفوظة لسورة معينة
   const calculateMemorizedVersesForSurah = (studentId, surahName) => {
-    const studentRecords = allMonthlyRecords.filter(r => r.student_id === studentId);
+    // تحويل student_id إلى string للمقارنة
+    const studentIdStr = String(studentId);
+    const studentRecords = allMonthlyRecords.filter(r => String(r.student_id) === studentIdStr);
     const surahRecords = studentRecords.filter(r => normalizeStr(r.surah_name) === normalizeStr(surahName));
     
     const memorizedSet = new Set();
@@ -85,6 +95,13 @@ const NextLevelSurahsPage = () => {
         }
       }
     });
+    
+    // تسجيل للطالب 304 للتحقق
+    if (studentId == 304) {
+      console.log(`🔍 معالجة الطالب 304 - السورة: ${surahName}`);
+      console.log(`   السجلات الموجودة: ${surahRecords.length}`);
+      console.log(`   الآيات المحفوظة: ${memorizedSet.size}`);
+    }
     
     return memorizedSet.size;
   };
