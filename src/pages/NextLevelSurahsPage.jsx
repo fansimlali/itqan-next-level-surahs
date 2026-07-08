@@ -47,24 +47,37 @@ const NextLevelSurahsPage = () => {
         if (currErr) throw currErr;
         setAllCurriculum(curriculumData || []);
 
-        // جلب جميع سجلات الحفظ
-        const { data: recordsData, error: recordsErr } = await supabase
-          .from('monthly_records')
-          .select('student_id, surah_name, start_verse, end_verse, verse_count');
+        // جلب جميع سجلات الحفظ باستخدام Pagination
+        let allRecordsData = [];
+        let pageIndex = 0;
+        const pageSize = 1000;
+        let hasMore = true;
         
-        if (recordsErr) throw recordsErr;
+        while (hasMore) {
+          const { data: recordsPage, error: recordsErr } = await supabase
+            .from('monthly_records')
+            .select('student_id, surah_name, start_verse, end_verse, verse_count')
+            .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
+          
+          if (recordsErr) throw recordsErr;
+          
+          if (recordsPage && recordsPage.length > 0) {
+            allRecordsData = [...allRecordsData, ...recordsPage];
+            pageIndex++;
+            // التحقق من هل هناك صفحات أخرى
+            hasMore = recordsPage.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
         
-        console.log('💾 عدد السجلات المجلوبة:', recordsData?.length || 0);
+        console.log('💾 عدد السجلات المجلوبة (بعد Pagination):', allRecordsData.length);
         
         // التحقق من بيانات الطالب 304
-        const student304Records = recordsData?.filter(r => r.student_id == 304 || r.student_id == '304') || [];
+        const student304Records = allRecordsData?.filter(r => r.student_id == 304 || r.student_id == '304') || [];
         console.log('🔍 سجلات الطالب 304 (العدد):', student304Records.length);
-        console.log('🔍 أسماء السور للطالب 304:');
-        student304Records.forEach((rec, idx) => {
-          console.log(`   ${idx + 1}. "سورة": "${rec.surah_name}", آيات: ${rec.start_verse}-${rec.end_verse}`);
-        });
         
-        setAllMonthlyRecords(recordsData || []);
+        setAllMonthlyRecords(allRecordsData || []);
       } catch (err) {
         setError(`خطأ في جلب البيانات: ${err.message}`);
         console.error('Error:', err);
@@ -99,15 +112,6 @@ const NextLevelSurahsPage = () => {
         }
       }
     });
-    
-    // تسجيل للطالب 304 للتحقق
-    if (studentId == 304) {
-      console.log(`🔍 معالجة الطالب 304 - السورة: "${surahName}"`);
-      console.log(`   السجلات الموجودة: ${surahRecords.length}`);
-      console.log(`   الآيات المحفوظة: ${memorizedSet.size}`);
-      console.log(`   بحثت عن: "${normalizeStr(surahName)}"`);
-      console.log(`   السجلات بالطالب:`, studentRecords.map(r => `"${r.surah_name}"`).join(', '));
-    }
     
     return memorizedSet.size;
   };
