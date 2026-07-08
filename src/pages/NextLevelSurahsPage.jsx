@@ -4,7 +4,8 @@ import NextLevelFilters from '../components/NextLevelFilters';
 import NextLevelStudentsTable from '../components/NextLevelStudentsTable';
 import NextLevelReportExport from '../components/NextLevelReportExport';
 import { getNextGrade } from '../utils/gradeProgression';
-import { calculateStudentSummary, filterIncompleteStudents, sortStudents, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
+import { sortStudents, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
+import { SURAH_VERSES } from '../utils/surahData';
 import { supabase } from '../supabase/client';
 import '../styles/print.css';
 
@@ -111,21 +112,25 @@ const NextLevelSurahsPage = () => {
         // حساب السور المحفوظة لكل سورة
         const surahStatuses = requiredSurahs.map(surahName => {
           const memorizedVerses = calculateMemorizedVersesForSurah(student.id, surahName);
+          const totalVerses = SURAH_VERSES[surahName] || 0;
+          const completionPercentage = totalVerses > 0 ? Math.round((memorizedVerses / totalVerses) * 100) : 0;
+          const isComplete = completionPercentage >= 80;
+          
           return {
             name: surahName,
             memorizedVerses: memorizedVerses,
-            status: memorizedVerses === 0 ? 'لم يبدأ' : (
-              memorizedVerses >= 45 ? 'محفوظ' : 'جزئي'
-            )
+            totalVerses: totalVerses,
+            completionPercentage: completionPercentage,
+            status: isComplete ? 'محفوظ' : (memorizedVerses > 0 ? 'جزئي' : 'لم يبدأ')
           };
         });
 
-        const incompleteSurahs = surahStatuses.filter(s => s.memorizedVerses === 0 || s.status !== 'محفوظ');
-        const completeSurahs = surahStatuses.filter(s => s.status === 'محفوظ');
+        const incompleteSurahs = surahStatuses.filter(s => s.completionPercentage < 80);
+        const completeSurahs = surahStatuses.filter(s => s.completionPercentage >= 80);
 
         const totalMemorized = surahStatuses.reduce((sum, s) => sum + s.memorizedVerses, 0);
-        const totalRequired = requiredSurahs.length * 60; // متوسط تقريبي
-        const overallCompletion = Math.min(Math.round((totalMemorized / totalRequired) * 100), 100);
+        const totalRequired = surahStatuses.reduce((sum, s) => sum + s.totalVerses, 0);
+        const overallCompletion = totalRequired > 0 ? Math.min(Math.round((totalMemorized / totalRequired) * 100), 100) : 0;
 
         const summary = {
           student_id: student.id,
