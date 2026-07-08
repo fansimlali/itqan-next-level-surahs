@@ -17,7 +17,7 @@ const NextLevelSurahsPage = () => {
   const [sortBy, setSortBy] = useState('name');
   const [allStudents, setAllStudents] = useState([]);
   const [allCurriculum, setAllCurriculum] = useState([]);
-  const [studentRecords, setStudentRecords] = useState({});
+  const [allMonthlyRecords, setAllMonthlyRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [processedStudents, setProcessedStudents] = useState([]);
@@ -46,30 +46,12 @@ const NextLevelSurahsPage = () => {
         if (currErr) throw currErr;
         setAllCurriculum(curriculumData || []);
 
-        // جلب جميع سجلات الحفظ
+        // جلب جميع سجلات الحفظ بالكامل
         const { data: recordsData, error: recordsErr } = await supabase
           .from('monthly_records')
           .select('student_id, surah_name, start_verse, end_verse, verse_count');
         if (recordsErr) throw recordsErr;
-        
-        // بناء خريطة من السجلات لكل طالب
-        const records = {};
-        recordsData.forEach((record) => {
-          if (!records[record.student_id]) {
-            records[record.student_id] = {};
-          }
-          
-          // حساب عدد الآيات من start_verse و end_verse
-          // لأن verse_count قد يكون 0 أو غير صحيح
-          let verseCount = record.verse_count || 0;
-          if (verseCount === 0 && record.start_verse && record.end_verse) {
-            verseCount = record.end_verse - record.start_verse + 1;
-          }
-          
-          records[record.student_id][record.surah_name] = 
-            (records[record.student_id][record.surah_name] || 0) + verseCount;
-        });
-        setStudentRecords(records);
+        setAllMonthlyRecords(recordsData || []);
       } catch (err) {
         setError(`خطأ في جلب البيانات: ${err.message}`);
         console.error('Error:', err);
@@ -79,6 +61,32 @@ const NextLevelSurahsPage = () => {
     };
     fetchData();
   }, []);
+
+  // دالة مساعدة لتطبيع النصوص
+  const normalizeStr = (str) => {
+    if (!str) return '';
+    return str
+      .replace(/^\s+/, '')
+      .replace(/\s+$/, '')
+      .trim();
+  };
+
+  // دالة لحساب الآيات المحفوظة لسورة معينة
+  const calculateMemorizedVersesForSurah = (studentId, surahName) => {
+    const studentRecords = allMonthlyRecords.filter(r => r.student_id === studentId);
+    const surahRecords = studentRecords.filter(r => normalizeStr(r.surah_name) === normalizeStr(surahName));
+    
+    const memorizedSet = new Set();
+    surahRecords.forEach(r => {
+      if (r.start_verse && r.end_verse) {
+        for (let i = r.start_verse; i <= r.end_verse; i++) {
+          memorizedSet.add(i);
+        }
+      }
+    });
+    
+    return memorizedSet.size;
+  };
 
   // معالجة البيانات
   useEffect(() => {
@@ -100,14 +108,44 @@ const NextLevelSurahsPage = () => {
 
         if (requiredSurahs.length === 0) return;
 
-        const studentRecs = studentRecords[student.id] || {};
-        const summary = calculateStudentSummary(student, requiredSurahs, studentRecs);
-        summary.next_grade = nextGradeVal;
+        // حساب السور المحفوظة لكل سورة
+        const surahStatuses = requiredSurahs.map(surahName => {
+          const memorizedVerses = calculateMemorizedVersesForSurah(student.id, surahName);
+          return {
+            name: surahName,
+            memorizedVerses: memorizedVerses,
+            status: memorizedVerses === 0 ? 'لم يبدأ' : (
+              memorizedVerses >= 45 ? 'محفوظ' : 'جزئي'
+            )
+          };
+        });
+
+        const incompleteSurahs = surahStatuses.filter(s => s.memorizedVerses === 0 || s.status !== 'محفوظ');
+        const completeSurahs = surahStatuses.filter(s => s.status === 'محفوظ');
+
+        const totalMemorized = surahStatuses.reduce((sum, s) => sum + s.memorizedVerses, 0);
+        const totalRequired = requiredSurahs.length * 60; // متوسط تقريبي
+        const overallCompletion = Math.min(Math.round((totalMemorized / totalRequired) * 100), 100);
+
+        const summary = {
+          student_id: student.id,
+          student_name: student.name,
+          current_grade: student.school_grade,
+          next_grade: nextGradeVal,
+          status: student.status,
+          gender: student.gender,
+          required_surahs_count: requiredSurahs.length,
+          incomplete_surahs_count: incompleteSurahs.length,
+          complete_surahs_count: completeSurahs.length,
+          overall_completion_percentage: overallCompletion,
+          incomplete_surahs: incompleteSurahs,
+          has_incomplete: incompleteSurahs.length > 0,
+        };
 
         processed.push(summary);
       });
 
-      let incomplete = filterIncompleteStudents(processed);
+      let incomplete = processed.filter((s) => s.has_incomplete);
 
       incomplete = incomplete.filter((s) => {
         if (activeOnly && s.status !== 'نشط') return false;
@@ -126,7 +164,7 @@ const NextLevelSurahsPage = () => {
       console.error('Error processing data:', err);
       setError('خطأ في معالجة البيانات');
     }
-  }, [allStudents, allCurriculum, studentRecords, activeOnly, selectedStatus, selectedGender, searchTerm, sortBy]);
+  }, [allStudents, allCurriculum, allMonthlyRecords, activeOnly, selectedStatus, selectedGender, searchTerm, sortBy]);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
