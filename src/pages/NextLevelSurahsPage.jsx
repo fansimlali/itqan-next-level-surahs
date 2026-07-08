@@ -64,7 +64,6 @@ const NextLevelSurahsPage = () => {
           if (recordsPage && recordsPage.length > 0) {
             allRecordsData = [...allRecordsData, ...recordsPage];
             pageIndex++;
-            // التحقق من هل هناك صفحات أخرى
             hasMore = recordsPage.length === pageSize;
           } else {
             hasMore = false;
@@ -73,9 +72,21 @@ const NextLevelSurahsPage = () => {
         
         console.log('💾 عدد السجلات المجلوبة (بعد Pagination):', allRecordsData.length);
         
-        // التحقق من بيانات الطالب 304
+        // التحقق من بيانات الطالب 304 و 307
         const student304Records = allRecordsData?.filter(r => r.student_id == 304 || r.student_id == '304') || [];
+        const student307Records = allRecordsData?.filter(r => r.student_id == 307 || r.student_id == '307') || [];
+        
         console.log('🔍 سجلات الطالب 304 (العدد):', student304Records.length);
+        console.log('🔍 سجلات الطالب 307 آدم (العدد):', student307Records.length);
+        
+        console.log('🔍 أسماء السور للطالب 307:');
+        student307Records.forEach((rec, idx) => {
+          console.log(`   ${idx + 1}. "${rec.surah_name}", آيات: ${rec.start_verse}-${rec.end_verse}`);
+        });
+        
+        // البحث عن الانفطار بالتحديد
+        const student307Anfal = student307Records.filter(r => r.surah_name === 'الانفطار');
+        console.log('🔍 سجلات الانفطار للطالب 307:', student307Anfal);
         
         setAllMonthlyRecords(allRecordsData || []);
       } catch (err) {
