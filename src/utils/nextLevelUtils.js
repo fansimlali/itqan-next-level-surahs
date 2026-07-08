@@ -3,9 +3,17 @@
  */
 
 import { GRADE_PROGRESSION } from './gradeProgression';
-import { SURAH_VERSES, calculateCompletionPercentage } from './surahData';
+import { SURAH_VERSES } from './surahData';
 
 export const COMPLETION_THRESHOLD = 0.8;
+
+/**
+ * calculateCompletionPercentage: حساب نسبة الاكتمال
+ */
+const calculateCompletionPercentage = (memorizedVerses, totalVerses) => {
+  if (totalVerses === 0) return 0;
+  return (memorizedVerses / totalVerses) * 100;
+};
 
 /**
  * normalizeStr: تطبيع النصوص
@@ -15,7 +23,7 @@ const normalizeStr = (str) => {
   const normalized = str
     .replace(/^\s+/, '')
     .replace(/\s+$/, '')
-    .replace(/^\u0633\u0648\u0631\u0629\s+/, '')
+    .replace(/^سورة\s+/, '')
     .replace(/^sura\s+/i, '')
     .trim();
   
@@ -27,11 +35,11 @@ const normalizeStr = (str) => {
  * getSurahStatus: تحديد حالة السورة
  */
 export const getSurahStatus = (memorizedVerses, totalVerses, threshold = COMPLETION_THRESHOLD) => {
-  if (totalVerses === 0) return '\u0644\u0645 \u064a\u0628\u062f\u0623';
+  if (totalVerses === 0) return 'لم يبدأ';
   const completionPercentage = memorizedVerses / totalVerses;
-  if (completionPercentage >= threshold) return '\u0645\u062d\u0641\u0648\u0638';
-  if (completionPercentage > 0) return '\u062c\u0632\u0626\u064a';
-  return '\u0644\u0645 \u064a\u0628\u062f\u0623';
+  if (completionPercentage >= threshold) return 'محفوظ';
+  if (completionPercentage > 0) return 'جزئي';
+  return 'لم يبدأ';
 };
 
 /**
@@ -39,9 +47,9 @@ export const getSurahStatus = (memorizedVerses, totalVerses, threshold = COMPLET
  */
 export const getStatusColor = (status) => {
   const colors = {
-    '\u0645\u062d\u0641\u0648\u0638': 'success',
-    '\u062c\u0632\u0626\u064a': 'warning',
-    '\u0644\u0645 \u064a\u0628\u062f\u0623': 'danger',
+    'محفوظ': 'success',
+    'جزئي': 'warning',
+    'لم يبدأ': 'danger',
   };
   return colors[status] || 'secondary';
 };
@@ -51,11 +59,11 @@ export const getStatusColor = (status) => {
  */
 export const getStatusIcon = (status) => {
   const icons = {
-    '\u0645\u062d\u0641\u0648\u0638': '\u2705',
-    '\u062c\u0632\u0626\u064a': '\u26a0\ufe0f',
-    '\u0644\u0645 \u064a\u0628\u062f\u0623': '\u274c',
+    'محفوظ': '✅',
+    'جزئي': '⚠️',
+    'لم يبدأ': '❌',
   };
-  return icons[status] || '\u2753';
+  return icons[status] || '❓';
 };
 
 /**
@@ -72,7 +80,7 @@ export const calculateSurahDetails = (surahName, memorizedVerses = 0) => {
     memorizedVerses,
     totalVerses,
     completionPercentage,
-    isComplete: status === '\u0645\u062d\u0641\u0648\u0638',
+    isComplete: status === 'محفوظ',
   };
 };
 
@@ -153,7 +161,7 @@ export const filterIncompleteStudents = (studentSummaries) => {
  */
 export const filterStudentsByStatus = (students, activeOnly = true) => {
   if (!activeOnly) return students;
-  return students.filter((s) => s.status === '\u0646\u0634\u0637');
+  return students.filter((s) => s.status === 'نشط');
 };
 
 /**
@@ -215,8 +223,8 @@ export const calculatePageStatistics = (students) => {
  */
 export const validateStudentData = (student) => {
   const errors = [];
-  if (!student.id) errors.push('\u0645\u0639\u0631\u0641 \u0627\u0644\u0637\u0627\u0644\u0628 \u0645\u0641\u0642\u0648\u062f');
-  if (!student.name) errors.push('\u0627\u0633\u0645 \u0627\u0644\u0637\u0627\u0644\u0628 \u0645\u0641\u0642\u0648\u062f');
+  if (!student.id) errors.push('معرف الطالب مفقود');
+  if (!student.name) errors.push('اسم الطالب مفقود');
   return {
     isValid: errors.length === 0,
     errors,
@@ -231,7 +239,7 @@ export const formatSurahForDisplay = (surah) => {
     ...surah,
     displayName: surah.name,
     displayStatus: surah.status,
-    displayVerses: `${surah.memorizedVerses} \u0645\u0646 ${surah.totalVerses}`,
+    displayVerses: `${surah.memorizedVerses} من ${surah.totalVerses}`,
     displayPercentage: `${surah.completionPercentage}%`,
     statusIcon: getStatusIcon(surah.status),
     statusColor: getStatusColor(surah.status),
