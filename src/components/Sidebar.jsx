@@ -1,0 +1,3 @@
+                <ProtectedNavLink feature="students" to="/itqan" icon={FaGraduationCap} onClick={handleLinkClick}>مسار الإتقان</ProtectedNavLink>
+                <ProtectedNavLink feature="students" to="/next-level-surahs" icon={FaBookReader} onClick={handleLinkClick}>السور غير المحفوظة</ProtectedNavLink>
+                <ProtectedNavLink feature="center-settings" to="/thumun-audit" icon={FaSearchPlus} onClick={handleLinkClick}>المدقق الموحد</ProtectedNavLink>
