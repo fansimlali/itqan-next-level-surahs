@@ -23,7 +23,7 @@ const NextLevelSurahsPage = () => {
   const [processedStudents, setProcessedStudents] = useState([]);
   const [statistics, setStatistics] = useState({});
 
-  // جلب جميع البيانات عند تحميل الصفحة
+  // جلب جميع البيانات
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -46,10 +46,10 @@ const NextLevelSurahsPage = () => {
         if (currErr) throw currErr;
         setAllCurriculum(curriculumData || []);
 
-        // جلب جميع سجلات الحفظ (بدون تصفية حسب المستوى)
+        // جلب جميع سجلات الحفظ
         const { data: recordsData, error: recordsErr } = await supabase
           .from('monthly_records')
-          .select('student_id, surah_name, verse_count');
+          .select('student_id, surah_name, start_verse, end_verse, verse_count');
         if (recordsErr) throw recordsErr;
         
         // بناء خريطة من السجلات لكل طالب
@@ -58,9 +58,16 @@ const NextLevelSurahsPage = () => {
           if (!records[record.student_id]) {
             records[record.student_id] = {};
           }
-          // جمع الآيات من نفس السورة (لو كان ليها أكثر من سجل واحد)
+          
+          // حساب عدد الآيات من start_verse و end_verse
+          // لأن verse_count قد يكون 0 أو غير صحيح
+          let verseCount = record.verse_count || 0;
+          if (verseCount === 0 && record.start_verse && record.end_verse) {
+            verseCount = record.end_verse - record.start_verse + 1;
+          }
+          
           records[record.student_id][record.surah_name] = 
-            (records[record.student_id][record.surah_name] || 0) + record.verse_count;
+            (records[record.student_id][record.surah_name] || 0) + verseCount;
         });
         setStudentRecords(records);
       } catch (err) {
@@ -85,16 +92,14 @@ const NextLevelSurahsPage = () => {
 
       allStudents.forEach((student) => {
         const nextGradeVal = getNextGrade(student.school_grade);
-        if (!nextGradeVal) return; // الطالب في آخر مستوى
+        if (!nextGradeVal) return;
 
-        // الحصول على السور المقررة للمستوى التالي
         const requiredSurahs = allCurriculum
           .filter((c) => c.school_grade === nextGradeVal)
           .map((c) => c.surah_name);
 
         if (requiredSurahs.length === 0) return;
 
-        // حساب الملخص باستخدام **جميع** سجلات الطالب
         const studentRecs = studentRecords[student.id] || {};
         const summary = calculateStudentSummary(student, requiredSurahs, studentRecs);
         summary.next_grade = nextGradeVal;
@@ -102,10 +107,8 @@ const NextLevelSurahsPage = () => {
         processed.push(summary);
       });
 
-      // البحث عن الطلاب ذوي السور الناقصة فقط
       let incomplete = filterIncompleteStudents(processed);
 
-      // تطبيق الفلاتر
       incomplete = incomplete.filter((s) => {
         if (activeOnly && s.status !== 'نشط') return false;
         if (selectedStatus && s.status !== selectedStatus) return false;
