@@ -1,166 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Box, Typography, CircularProgress, Alert, Paper, Stack, Grid, Card, CardContent } from '@mui/material';
-import NextLevelFilters from '../components/NextLevelFilters';
-import NextLevelStudentsTable from '../components/NextLevelStudentsTable';
-import NextLevelReportExport from '../components/NextLevelReportExport';
-import { getNextGrade } from '../utils/gradeProgression';
-import { sortStudents, searchStudents, calculatePageStatistics } from '../utils/nextLevelUtils';
-import { SURAH_VERSES } from '../utils/surahData';
-import { supabase } from '../supabase/client';
-import '../styles/print.css';
-
-const NextLevelSurahsPage = () => {
-  const [selectedGrade, setSelectedGrade] = useState('الأول ابتدائي');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedGender, setSelectedGender] = useState('');
-  const [activeOnly, setActiveOnly] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('name');
-  const [allStudents, setAllStudents] = useState([]);
-  const [allCurriculum, setAllCurriculum] = useState([]);
-  const [allMonthlyRecords, setAllMonthlyRecords] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [processedStudents, setProcessedStudents] = useState([]);
-  const [statistics, setStatistics] = useState({});
-
-  // جلب جميع البيانات
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // جلب جميع الطلاب
-        const { data: studentsData, error: studentsErr } = await supabase
-          .from('students')
-          .select('id, name, school_grade, status, gender')
-          .is('deleted_at', null)
-          .order('school_grade')
-          .order('name');
-        if (studentsErr) throw studentsErr;
-        setAllStudents(studentsData || []);
-
-        // جلب جميع المقرر الدراسي
-        const { data: curriculumData, error: currErr } = await supabase
-          .from('curriculum')
-          .select('school_grade, surah_name');
-        if (currErr) throw currErr;
-        setAllCurriculum(curriculumData || []);
-
-        // جلب جميع سجلات الحفظ باستخدام Pagination
-        let allRecordsData = [];
-        let pageIndex = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-        
-        while (hasMore) {
-          const { data: recordsPage, error: recordsErr } = await supabase
-            .from('monthly_records')
-            .select('student_id, surah_name, start_verse, end_verse, verse_count')
-            .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
-          
-          if (recordsErr) throw recordsErr;
-          
-          if (recordsPage && recordsPage.length > 0) {
-            allRecordsData = [...allRecordsData, ...recordsPage];
-            pageIndex++;
-            hasMore = recordsPage.length === pageSize;
-          } else {
-            hasMore = false;
-          }
-        }
-        
-        console.log('💾 عدد السجلات المجلوبة (بعد Pagination):', allRecordsData.length);
-        
-        // التحقق من بيانات الطالب 304 و 307
-        const student304Records = allRecordsData?.filter(r => r.student_id == 304 || r.student_id == '304') || [];
-        const student307Records = allRecordsData?.filter(r => r.student_id == 307 || r.student_id == '307') || [];
-        
-        console.log('🔍 سجلات الطالب 304 (العدد):', student304Records.length);
-        console.log('🔍 سجلات الطالب 307 آدم (العدد):', student307Records.length);
-        
-        console.log('🔍 أسماء السور للطالب 307:');
-        student307Records.forEach((rec, idx) => {
-          console.log(`   ${idx + 1}. "${rec.surah_name}", آيات: ${rec.start_verse}-${rec.end_verse}`);
-        });
-        
-        // البحث عن الانفطار بالتحديد
-        const student307Anfal = student307Records.filter(r => r.surah_name === 'الانفطار');
-        console.log('🔍 سجلات الانفطار للطالب 307:', student307Anfal);
-        
-        setAllMonthlyRecords(allRecordsData || []);
-      } catch (err) {
-        setError(`خطأ في جلب البيانات: ${err.message}`);
-        console.error('Error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // دالة مساعدة لتطبيع النصوص
-  const normalizeStr = (str) => {
-    if (!str) return '';
-    return str
-      .replace(/^\s+/, '')
-      .replace(/\s+$/, '')
-      .trim();
-  };
-
-  // دالة لحساب الآيات المحفوظة لسورة معينة
-  const calculateMemorizedVersesForSurah = (studentId, surahName) => {
-    // تحويل student_id إلى number و string للمقارنة
-    const studentIdNum = parseInt(studentId, 10);
-    const studentIdStr = String(studentId);
-    
-    // تصفية السجلات باستخدام مقارنة مرنة (من حيث رقم الطالب)
-    const studentRecords = allMonthlyRecords.filter(r => {
-      const recordStudentId = parseInt(r.student_id, 10);
-      return recordStudentId === studentIdNum || r.student_id === studentIdStr || String(r.student_id) === studentIdStr;
-    });
-    
-    // تصفية بالسورة
-    const surahRecords = studentRecords.filter(r => {
-      const recordName = normalizeStr(r.surah_name);
-      const targetName = normalizeStr(surahName);
-      return recordName === targetName;
-    });
-    
-    // DEBUG: للطالب 307 وسورة الانفطار
-    if (studentIdNum === 307 && (surahName.includes('انفطار') || surahName === 'الانفطار')) {
-      console.log('\n🔍 DEBUG الانفطار الطالب 307:');
-      console.log('   ستودنت ID (رقم):', studentIdNum);
-      console.log('   ستودنت ID (نص):', studentIdStr);
-      console.log('   السورة المطلوبة:', `"${surahName}"`);
-      console.log('   السورة مطبعة:', `"${normalizeStr(surahName)}"`);
-      console.log('   عدد سجلات الطالب (الكلية):', studentRecords.length);
-      console.log('   عدد سجلات الانفطار:', surahRecords.length);
-      console.log('   مفاصيل سجلات الانفطار:', surahRecords);
-    }
-    
-    // حساب عدد الآيات
-    const memorizedSet = new Set();
-    surahRecords.forEach(r => {
-      if (r.start_verse && r.end_verse) {
-        const startVerse = parseInt(r.start_verse, 10);
-        const endVerse = parseInt(r.end_verse, 10);
-        for (let i = startVerse; i <= endVerse; i++) {
-          memorizedSet.add(i);
-        }
-      }
-    });
-    
-    if (studentIdNum === 307 && (surahName.includes('انفطار') || surahName === 'الانفطار')) {
-      console.log('   عدد الآيات المحفوظة:', memorizedSet.size);
-    }
-    
-    return memorizedSet.size;
-  };
-
   // معالجة البيانات
   useEffect(() => {
+    console.log('\n🔜 PROCESSING HOOK RUNNING');
+    console.log('   allMonthlyRecords.length:', allMonthlyRecords.length);
+    console.log('   allStudents.length:', allStudents.length);
+    console.log('   allCurriculum.length:', allCurriculum.length);
+    
     if (!allStudents || allStudents.length === 0 || allCurriculum.length === 0) {
+      console.log('   ⚠️ Missing data, skipping processing');
       setProcessedStudents([]);
       return;
     }
@@ -185,6 +31,15 @@ const NextLevelSurahsPage = () => {
           const completionPercentage = totalVerses > 0 ? Math.round((memorizedVerses / totalVerses) * 100) : 0;
           const isComplete = completionPercentage >= 80;
           
+          // DEBUG: للطالب 307
+          if (student.id == 307 && surahName.includes('انفطار')) {
+            console.log(`\n🔍 SURAH STATUS CALC (307): "${surahName}"`);
+            console.log(`   memorizedVerses: ${memorizedVerses}`);
+            console.log(`   totalVerses: ${totalVerses}`);
+            console.log(`   completionPercentage: ${completionPercentage}%`);
+            console.log(`   isComplete: ${isComplete}`);
+          }
+          
           return {
             name: surahName,
             memorizedVerses: memorizedVerses,
@@ -196,6 +51,17 @@ const NextLevelSurahsPage = () => {
 
         const incompleteSurahs = surahStatuses.filter(s => s.completionPercentage < 80);
         const completeSurahs = surahStatuses.filter(s => s.completionPercentage >= 80);
+        
+        // DEBUG: للطالب 307
+        if (student.id == 307) {
+          console.log(`\n🔍 SURAHS FOR 307 AFTER FILTER:`);
+          console.log(`   incomplete (< 80%): ${incompleteSurahs.length}`);
+          incompleteSurahs.forEach(s => {
+            if (s.name.includes('انفطار')) {
+              console.log(`   - "${s.name}": ${s.memorizedVerses}/${s.totalVerses}`);
+            }
+          });
+        }
 
         const totalMemorized = surahStatuses.reduce((sum, s) => sum + s.memorizedVerses, 0);
         const totalRequired = surahStatuses.reduce((sum, s) => sum + s.totalVerses, 0);
@@ -234,100 +100,11 @@ const NextLevelSurahsPage = () => {
       setProcessedStudents(incomplete);
       const stats = calculatePageStatistics(incomplete);
       setStatistics(stats);
+      
+      console.log('\n✅ PROCESSING COMPLETE');
+      console.log('   Final processed students:', incomplete.length);
     } catch (err) {
       console.error('Error processing data:', err);
       setError('خطأ في معالجة البيانات');
     }
   }, [allStudents, allCurriculum, allMonthlyRecords, activeOnly, selectedStatus, selectedGender, searchTerm, sortBy]);
-
-  return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: 'primary.main', mb: 1 }}>
-          📚 السور الغير المحفوظة في المستوى التالي
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          عرض جميع الطلاب الذين لديهم سور ناقصة في مستواهم التالية
-        </Typography>
-      </Box>
-
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
-      <NextLevelFilters
-        selectedGrade={selectedGrade}
-        onGradeChange={setSelectedGrade}
-        selectedStatus={selectedStatus}
-        onStatusChange={setSelectedStatus}
-        selectedGender={selectedGender}
-        onGenderChange={setSelectedGender}
-        activeOnly={activeOnly}
-        onActiveOnlyChange={setActiveOnly}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        disabled={loading}
-        showGradeFilter={false}
-      />
-
-      {processedStudents.length > 0 && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  عدد الطلاب
-                </Typography>
-                <Typography variant="h5">{statistics.total_students}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  إجمالي السور الناقصة
-                </Typography>
-                <Typography variant="h5">{statistics.total_incomplete_surahs}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  نسبة الإكمال المتوسطة
-                </Typography>
-                <Typography variant="h5">{statistics.average_completion_percentage}%</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  عدد الطلاب مع سور ناقصة
-                </Typography>
-                <Typography variant="h5">{processedStudents.length}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <NextLevelStudentsTable students={processedStudents} loading={loading} />
-      )}
-
-      {processedStudents.length > 0 && (
-        <Box sx={{ mt: 4 }}>
-          <NextLevelReportExport students={processedStudents} statistics={statistics} disabled={loading} />
-        </Box>
-      )}
-    </Container>
-  );
-};
-
-export default NextLevelSurahsPage;
